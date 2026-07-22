@@ -33,7 +33,7 @@ node tests/run-tests.cjs
 - Saturated rising parcels follow a pseudoadiabatic moist adiabat with `T = Td`. A saturated parcel that starts sinking immediately becomes unsaturated and follows a dry adiabat.
 - Parcel temperature and dewpoint trajectories retain their complete history for the full animation.
 - Parcels cannot move below the environmental surface. They may continue above the plotted 100 hPa boundary while sounding data remain available; reaching the highest supplied level stops the animation with an error instead of extrapolating the environment.
-- Run, pause/resume, reset, and press-and-hold forced ascent or descent at 550 m s⁻¹. Forced motion always leaves vertical velocity at zero, and forced descent cannot pass below the surface.
+- Run, pause/resume, reset, and press-and-hold forced ascent or descent at 1,100 m s⁻¹. Forced motion always leaves vertical velocity at zero, and forced descent cannot pass below the surface.
 
 ## Sounding files
 

@@ -47,7 +47,7 @@ const plotSettings = Object.freeze({
 
 const simulationSettings = Object.freeze({
   timeScale: 50,
-  forcedMotionSpeed: 550,
+  forcedMotionSpeed: 1100,
 });
 
 const state = {
