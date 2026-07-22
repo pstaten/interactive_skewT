@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Interactive Skew-T log-p diagram and buoyant parcel simulator for atmospheric thermodynamics.">
+    <title>Interactive Skew-T Parcel Lab</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Atmospheric Thermodynamics</p>
+          <h1>Interactive Skew-T Parcel Lab</h1>
+          <p class="subtitle">Build a sounding, place a parcel, and follow its buoyant motion.</p>
+        </div>
+        <div class="simulation-actions" aria-label="Simulation controls">
+          <button id="runButton" class="primary-button" type="button" disabled>Run</button>
+          <button id="pauseButton" class="secondary-button" type="button" disabled>Pause</button>
+          <button id="forceUpButton" class="secondary-button force-button" type="button" disabled aria-describedby="forceHelp">Hold to force up</button>
+          <button id="forceDownButton" class="secondary-button force-button" type="button" disabled aria-describedby="forceHelp">Hold to force down</button>
+          <button id="resetButton" class="secondary-button" type="button">Reset parcel</button>
+        </div>
+      </header>
+
+      <p id="forceHelp" class="sr-only">Available while the simulation is stopped or paused. Hold either button, Space, or Enter to move the parcel in the labeled direction. Releasing it sets vertical velocity to zero.</p>
+
+      <section class="workspace" aria-label="Interactive Skew-T workspace">
+        <aside class="data-panel" aria-label="Environmental sounding controls">
+          <div class="panel-heading">
+            <div>
+              <p class="step-label">Step 1</p>
+              <h2>Environmental profile</h2>
+            </div>
+          </div>
+
+          <div class="control-section">
+            <label for="presetSelect">Preset sounding</label>
+            <div class="inline-control">
+              <select id="presetSelect">
+                <option value="summer-unstable">Summer: unstable</option>
+                <option value="winter-inversion">Winter: surface inversion</option>
+                <option value="tropical-moist">Tropical: deep moisture</option>
+                <option value="high-plains-dry">High Plains: dry boundary layer</option>
+              </select>
+              <button id="loadPresetButton" class="secondary-button compact" type="button">Load</button>
+            </div>
+          </div>
+
+          <div class="control-section">
+            <label for="soundingFile">Upload University of Wyoming CSV</label>
+            <input id="soundingFile" type="file" accept=".csv,text/csv" aria-describedby="soundingFileHelp">
+            <p id="soundingFileHelp" class="help-text">Choose the <code>TEXT:CSV</code> sounding file downloaded from the Wyoming archive. Pressure, temperature, and dewpoint are read from its standard columns; data above the plotted 100 hPa boundary remain available to the parcel model.</p>
+            <p class="help-text">
+              <a class="fallback-link" href="https://weather.uwyo.edu/upperair/sounding.shtml" target="_blank" rel="noopener">Open the University of Wyoming sounding archive</a><br>
+              <a class="fallback-link" href="sample-data/wyoming-text-csv-example.csv" download>Download an example CSV</a>
+            </p>
+          </div>
+
+          <div id="dataStatus" class="status-message" role="status" aria-live="polite"></div>
+
+          <dl class="profile-summary" aria-label="Loaded profile summary">
+            <div>
+              <dt>Source</dt>
+              <dd id="sourceReadout">Summer: unstable</dd>
+            </div>
+            <div>
+              <dt>Surface</dt>
+              <dd id="surfaceReadout">1000 hPa</dd>
+            </div>
+            <div>
+              <dt>Top of data</dt>
+              <dd id="topReadout">100 hPa</dd>
+            </div>
+            <div>
+              <dt>Levels</dt>
+              <dd id="levelReadout">—</dd>
+            </div>
+          </dl>
+
+          <details class="precise-entry">
+            <summary>Keyboard / precise parcel entry</summary>
+            <div class="entry-grid">
+              <label for="parcelPressureInput">Pressure (hPa)</label>
+              <input id="parcelPressureInput" type="number" min="100" max="1050" step="1" value="900">
+              <label for="parcelTempInput">Temperature (°C)</label>
+              <input id="parcelTempInput" type="number" min="-120" max="60" step="0.1" value="20">
+              <label for="parcelDewpointInput">Dewpoint (°C, optional)</label>
+              <input id="parcelDewpointInput" type="number" min="-120" max="60" step="0.1" placeholder="Perfectly dry">
+            </div>
+            <button id="applyParcelButton" class="secondary-button compact" type="button">Apply parcel</button>
+          </details>
+        </aside>
+
+        <section class="chart-panel" aria-label="Skew-T diagram and parcel controls">
+          <div class="chart-toolbar">
+            <div>
+              <p class="step-label">Step 2</p>
+              <h2>Place the parcel</h2>
+            </div>
+            <div class="placement-controls" role="group" aria-label="Parcel placement controls">
+              <div class="placement-pair temperature-pair">
+                <button id="parcelTempButton" class="placement-button temperature-button" type="button" aria-pressed="false">Parcel Temperature</button>
+                <button id="clearTempButton" class="clear-button" type="button" disabled>Clear T</button>
+              </div>
+              <div class="placement-pair dewpoint-pair">
+                <button id="parcelDewpointButton" class="placement-button dewpoint-button" type="button" aria-pressed="false">Parcel Dewpoint</button>
+                <button id="clearDewpointButton" class="clear-button" type="button" disabled>Clear Td</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="canvas-wrap">
+            <canvas id="skewCanvas" role="img" aria-label="Skew-T log-pressure diagram. Environmental temperature and dewpoint profiles appear over dry adiabats, moist adiabats, and mixing-ratio lines. Use the parcel controls above or the keyboard entry fields to place a parcel."></canvas>
+          </div>
+
+          <div class="chart-footer">
+            <div class="legend" aria-label="Diagram legend">
+              <span><i class="legend-line environment-temp"></i>environment T</span>
+              <span><i class="legend-line environment-dewpoint"></i>environment Td</span>
+              <span><i class="legend-dot parcel-temp"></i>parcel T</span>
+              <span><i class="legend-dot parcel-dewpoint"></i>parcel Td</span>
+            </div>
+            <output id="cursorReadout" class="cursor-readout" aria-live="polite">Choose a parcel control, then point on the diagram.</output>
+          </div>
+        </section>
+      </section>
+
+      <section class="parcel-strip" aria-label="Live parcel state">
+        <div class="strip-heading">
+          <div>
+            <p class="step-label">Step 3</p>
+            <h2>Parcel state</h2>
+          </div>
+          <output id="simulationStatus" class="simulation-status" aria-live="polite">Place a parcel temperature to begin.</output>
+        </div>
+        <dl class="readout-grid">
+          <div><dt>Pressure</dt><dd id="parcelPressureReadout">—</dd></div>
+          <div><dt>Height</dt><dd id="parcelHeightReadout">—</dd></div>
+          <div><dt>Temperature</dt><dd id="parcelTempReadout">—</dd></div>
+          <div><dt>Dewpoint</dt><dd id="parcelDewpointReadout">—</dd></div>
+          <div><dt>Vertical speed</dt><dd id="parcelVelocityReadout">—</dd></div>
+          <div><dt>Buoyancy</dt><dd id="parcelBuoyancyReadout">—</dd></div>
+          <div><dt>Phase</dt><dd id="parcelPhaseReadout">—</dd></div>
+        </dl>
+      </section>
+    </main>
+
+    <script src="physics.js"></script>
+    <script src="data.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
