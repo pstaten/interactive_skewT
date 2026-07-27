@@ -19,12 +19,14 @@
         <div class="simulation-actions" aria-label="Simulation controls">
           <button id="runButton" class="primary-button" type="button" disabled>Run</button>
           <button id="pauseButton" class="secondary-button" type="button" disabled>Pause</button>
+          <button id="fastForwardButton" class="secondary-button" type="button" aria-pressed="false" aria-describedby="speedHelp">Fast-forward 10×</button>
           <button id="forceUpButton" class="secondary-button force-button" type="button" disabled aria-describedby="forceHelp">Hold to force up</button>
           <button id="forceDownButton" class="secondary-button force-button" type="button" disabled aria-describedby="forceHelp">Hold to force down</button>
           <button id="resetButton" class="secondary-button" type="button">Reset parcel</button>
         </div>
       </header>
 
+      <p id="speedHelp" class="sr-only">Toggle between the normal free-motion animation rate and an animation rate ten times faster. This setting can be changed before or during a run.</p>
       <p id="forceHelp" class="sr-only">Available while the simulation is stopped or paused. Hold either button, Space, or Enter to move the parcel in the labeled direction. Releasing it sets vertical velocity to zero.</p>
 
       <section class="workspace" aria-label="Interactive Skew-T workspace">
@@ -112,8 +114,34 @@
             </div>
           </div>
 
+          <fieldset class="grid-controls">
+            <legend>Grid lines</legend>
+            <div class="grid-toggle-list">
+              <label class="grid-toggle" for="isothermsToggle">
+                <input id="isothermsToggle" type="checkbox" data-grid-layer="isotherms" checked>
+                <span>Isotherms</span>
+              </label>
+              <label class="grid-toggle" for="isobarsToggle">
+                <input id="isobarsToggle" type="checkbox" data-grid-layer="isobars" checked>
+                <span>Isobars</span>
+              </label>
+              <label class="grid-toggle" for="dryAdiabatsToggle">
+                <input id="dryAdiabatsToggle" type="checkbox" data-grid-layer="dryAdiabats" checked>
+                <span>Dry adiabats</span>
+              </label>
+              <label class="grid-toggle" for="saturatedAdiabatsToggle">
+                <input id="saturatedAdiabatsToggle" type="checkbox" data-grid-layer="saturatedAdiabats" checked>
+                <span>Saturated adiabats</span>
+              </label>
+              <label class="grid-toggle" for="mixingRatioToggle">
+                <input id="mixingRatioToggle" type="checkbox" data-grid-layer="mixingRatio" checked>
+                <span>Mixing ratio</span>
+              </label>
+            </div>
+          </fieldset>
+
           <div class="canvas-wrap">
-            <canvas id="skewCanvas" role="img" aria-label="Skew-T log-pressure diagram. Environmental temperature and dewpoint profiles appear over dry adiabats, moist adiabats, and mixing-ratio lines. Use the parcel controls above or the keyboard entry fields to place a parcel."></canvas>
+            <canvas id="skewCanvas" role="img" aria-label="Skew-T log-pressure diagram. Environmental temperature and dewpoint profiles appear over optional isotherms, isobars, dry adiabats, saturated adiabats, and mixing-ratio lines. Use the grid controls above to show or hide each family of lines. Use the parcel controls or keyboard entry fields to place a parcel."></canvas>
           </div>
 
           <div class="chart-footer">

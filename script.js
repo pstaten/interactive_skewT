@@ -23,9 +23,11 @@ const elements = {
   clearDewpoint: document.getElementById("clearDewpointButton"),
   run: document.getElementById("runButton"),
   pause: document.getElementById("pauseButton"),
+  fastForward: document.getElementById("fastForwardButton"),
   forceUp: document.getElementById("forceUpButton"),
   forceDown: document.getElementById("forceDownButton"),
   reset: document.getElementById("resetButton"),
+  gridToggles: document.querySelectorAll("[data-grid-layer]"),
   cursorReadout: document.getElementById("cursorReadout"),
   simulationStatus: document.getElementById("simulationStatus"),
   parcelPressureReadout: document.getElementById("parcelPressureReadout"),
@@ -46,7 +48,8 @@ const plotSettings = Object.freeze({
 });
 
 const simulationSettings = Object.freeze({
-  timeScale: 50,
+  normalTimeScale: 50,
+  fastForwardMultiplier: 10,
   forcedMotionSpeed: 1100,
 });
 
@@ -59,7 +62,15 @@ const state = {
   parcel: null,
   simulationMode: "idle",
   simulationError: null,
+  fastForward: false,
   forcingDirection: null,
+  gridVisibility: {
+    isotherms: true,
+    isobars: true,
+    dryAdiabats: true,
+    saturatedAdiabats: true,
+    mixingRatio: true,
+  },
   trail: [],
   trailClock: 0,
   simulationClock: 0,
@@ -75,6 +86,11 @@ function formatSigned(value, digits = 2) {
   if (!Number.isFinite(value)) return "—";
   if (Math.abs(value) < 0.5 * 10 ** -digits) return (0).toFixed(digits);
   return `${value > 0 ? "+" : ""}${value.toFixed(digits)}`;
+}
+
+function currentTimeScale() {
+  return simulationSettings.normalTimeScale *
+    (state.fastForward ? simulationSettings.fastForwardMultiplier : 1);
 }
 
 function setDataStatus(message, kind = "") {
@@ -236,6 +252,7 @@ function updateControlState() {
   elements.run.disabled = !state.parcel || running || terminalError;
   elements.pause.disabled = !state.parcel || state.simulationMode === "idle" || terminalError;
   elements.pause.textContent = paused ? "Resume" : "Pause";
+  elements.fastForward.setAttribute("aria-pressed", String(state.fastForward));
   elements.forceUp.disabled = !state.parcel || running || terminalError;
   elements.forceDown.disabled = !state.parcel || running || terminalError;
   elements.forceUp.classList.toggle("is-held", state.forcingDirection === "up");
@@ -270,9 +287,10 @@ function updateReadouts() {
       elements.simulationStatus.textContent = "Forcing downward; vertical velocity is held at zero.";
     } else if (state.simulationMode === "running") {
       const direction = parcel.velocity > 0.05 ? "rising" : parcel.velocity < -0.05 ? "sinking" : "nearly stationary";
+      const speedLabel = state.fastForward ? " at 10× speed" : "";
       elements.simulationStatus.textContent = abovePlot ?
-        `Running above the plotted ${plotSettings.topPressure} hPa boundary: parcel is ${direction}.` :
-        `Running: parcel is ${direction}; acceleration follows virtual-temperature buoyancy.`;
+        `Running${speedLabel} above the plotted ${plotSettings.topPressure} hPa boundary: parcel is ${direction}.` :
+        `Running${speedLabel}: parcel is ${direction}; acceleration follows virtual-temperature buoyancy.`;
     } else if (state.simulationMode === "paused") {
       elements.simulationStatus.textContent = abovePlot ?
         `Paused above the plotted ${plotSettings.topPressure} hPa boundary.` :
@@ -418,36 +436,46 @@ function drawAxesAndBackground(ctx, map, width, height) {
   ctx.clip();
 
   const pressureTicks = [1000, 925, 850, 700, 500, 400, 300, 250, 200, 150, 100];
-  for (const pressure of pressureTicks) {
-    const y = map.y(pressure);
-    ctx.strokeStyle = pressure === 500 ? "#aab7c0" : "#dce3e8";
-    ctx.lineWidth = pressure === 500 ? 1.2 : 1;
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(map.left, y);
-    ctx.lineTo(map.right, y);
-    ctx.stroke();
+  if (state.gridVisibility.isobars) {
+    for (const pressure of pressureTicks) {
+      const y = map.y(pressure);
+      ctx.strokeStyle = pressure === 500 ? "#aab7c0" : "#dce3e8";
+      ctx.lineWidth = pressure === 500 ? 1.2 : 1;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(map.left, y);
+      ctx.lineTo(map.right, y);
+      ctx.stroke();
+    }
   }
 
-  for (let temperature = -110; temperature <= plotSettings.xMax; temperature += 10) {
-    drawCurve(ctx, map, [
-      { p: plotSettings.bottomPressure, t: temperature },
-      { p: plotSettings.topPressure, t: temperature },
-    ], {
-      color: temperature === 0 ? "#7199bc" : "#ead7d3",
-      width: temperature === 0 ? 1.35 : 0.8,
-      alpha: temperature === 0 ? 0.95 : 0.75,
-    });
+  if (state.gridVisibility.isotherms) {
+    for (let temperature = -110; temperature <= plotSettings.xMax; temperature += 10) {
+      drawCurve(ctx, map, [
+        { p: plotSettings.bottomPressure, t: temperature },
+        { p: plotSettings.topPressure, t: temperature },
+      ], {
+        color: temperature === 0 ? "#7199bc" : "#ead7d3",
+        width: temperature === 0 ? 1.35 : 0.8,
+        alpha: temperature === 0 ? 0.95 : 0.75,
+      });
+    }
   }
 
-  for (const curve of state.backgroundCurves.dry) {
-    drawCurve(ctx, map, curve, { color: "#d0a05f", width: 0.8, alpha: 0.62 });
+  if (state.gridVisibility.dryAdiabats) {
+    for (const curve of state.backgroundCurves.dry) {
+      drawCurve(ctx, map, curve, { color: "#d0a05f", width: 0.8, alpha: 0.62 });
+    }
   }
-  for (const curve of state.backgroundCurves.moist) {
-    drawCurve(ctx, map, curve, { color: "#65a784", width: 0.85, alpha: 0.66, dash: [5, 4] });
+  if (state.gridVisibility.saturatedAdiabats) {
+    for (const curve of state.backgroundCurves.moist) {
+      drawCurve(ctx, map, curve, { color: "#65a784", width: 0.85, alpha: 0.66, dash: [5, 4] });
+    }
   }
-  for (const curve of state.backgroundCurves.mixing) {
-    drawCurve(ctx, map, curve.points, { color: "#6697a8", width: 0.7, alpha: 0.7, dash: [2, 4] });
+  if (state.gridVisibility.mixingRatio) {
+    for (const curve of state.backgroundCurves.mixing) {
+      drawCurve(ctx, map, curve.points, { color: "#6697a8", width: 0.7, alpha: 0.7, dash: [2, 4] });
+    }
   }
 
   if (state.environment && state.environment.surfacePressure < plotSettings.bottomPressure) {
@@ -501,12 +529,14 @@ function drawAxesAndBackground(ctx, map, width, height) {
   ctx.fillStyle = colors.muted;
   ctx.textAlign = "left";
   ctx.textBaseline = "bottom";
-  for (const curve of state.backgroundCurves.mixing) {
-    const labelPoint = curve.points.reduce((closest, point) =>
-      Math.abs(point.p - 650) < Math.abs(closest.p - 650) ? point : closest, curve.points[0]);
-    const x = map.x(labelPoint.t, labelPoint.p);
-    const y = map.y(labelPoint.p);
-    if (x > map.left + 5 && x < map.right - 5) ctx.fillText(`${curve.label}`, x + 2, y - 2);
+  if (state.gridVisibility.mixingRatio) {
+    for (const curve of state.backgroundCurves.mixing) {
+      const labelPoint = curve.points.reduce((closest, point) =>
+        Math.abs(point.p - 650) < Math.abs(closest.p - 650) ? point : closest, curve.points[0]);
+      const x = map.x(labelPoint.t, labelPoint.p);
+      const y = map.y(labelPoint.p);
+      if (x > map.left + 5 && x < map.right - 5) ctx.fillText(`${curve.label}`, x + 2, y - 2);
+    }
   }
 }
 
@@ -700,6 +730,11 @@ function togglePause() {
   updateUI();
 }
 
+function toggleFastForward() {
+  state.fastForward = !state.fastForward;
+  updateUI();
+}
+
 function setForcing(direction, active) {
   const allowed = Boolean(active && state.parcel && state.simulationMode !== "running" && state.simulationMode !== "error");
   if (allowed) state.forcingDirection = direction;
@@ -777,7 +812,7 @@ function animationFrame(timestamp) {
   lastTimestamp = timestamp;
 
   if (state.parcel && state.simulationMode === "running") {
-    dynamicsAccumulator += elapsed * simulationSettings.timeScale;
+    dynamicsAccumulator += elapsed * currentTimeScale();
     while (dynamicsAccumulator >= 0.05) {
       P.stepParcelDynamics(state.parcel, state.environment, 0.05);
       state.simulationClock += 0.05;
@@ -833,7 +868,14 @@ elements.clearTemp.addEventListener("click", clearTemperature);
 elements.clearDewpoint.addEventListener("click", clearDewpoint);
 elements.run.addEventListener("click", startRun);
 elements.pause.addEventListener("click", togglePause);
+elements.fastForward.addEventListener("click", toggleFastForward);
 elements.reset.addEventListener("click", resetParcel);
+elements.gridToggles.forEach((toggle) => {
+  toggle.addEventListener("change", () => {
+    state.gridVisibility[toggle.dataset.gridLayer] = toggle.checked;
+    drawPlot();
+  });
+});
 elements.canvas.addEventListener("pointermove", updateHover);
 elements.canvas.addEventListener("pointerdown", (event) => {
   if (event.button !== undefined && event.button !== 0) return;

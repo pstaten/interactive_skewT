@@ -28,12 +28,13 @@ node tests/run-tests.cjs
 - Mouse, touch, and numeric/keyboard parcel placement. Placing the second thermodynamic variable locks it to the first marker's pressure.
 - Temperature and dewpoint markers may be cleared and replaced independently. Dewpoint is constrained not to exceed temperature, so supersaturation is not represented.
 - Free motion with acceleration from virtual-temperature buoyancy and no velocity damping.
-- Free-motion animation advances at 50 simulated seconds per real second.
+- Free-motion animation advances at 50 simulated seconds per real second, with a persistent fast-forward toggle for 10× playback (500 simulated seconds per real second).
+- Independent grid controls show or hide the isotherms, isobars, dry adiabats, saturated adiabats, and mixing-ratio lines while leaving the axes and environmental profile visible.
 - Unsaturated temperature follows a dry adiabat; unsaturated dewpoint follows a constant mixing-ratio line.
 - Saturated rising parcels follow a pseudoadiabatic moist adiabat with `T = Td`. A saturated parcel that starts sinking immediately becomes unsaturated and follows a dry adiabat.
 - Parcel temperature and dewpoint trajectories retain their complete history for the full animation.
 - Parcels cannot move below the environmental surface. They may continue above the plotted 100 hPa boundary while sounding data remain available; reaching the highest supplied level stops the animation with an error instead of extrapolating the environment.
-- Run, pause/resume, reset, and press-and-hold forced ascent or descent at 1,100 m s⁻¹. Forced motion always leaves vertical velocity at zero, and forced descent cannot pass below the surface.
+- Run, pause/resume, fast-forward, reset, and press-and-hold forced ascent or descent at 1,100 m s⁻¹. Fast-forward may be changed before or during a run. Forced motion always leaves vertical velocity at zero, and forced descent cannot pass below the surface.
 
 ## Sounding files
 

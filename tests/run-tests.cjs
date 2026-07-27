@@ -1,6 +1,10 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
+const { performance } = require("node:perf_hooks");
 const P = require("../physics.js");
 const D = require("../data.js");
 
@@ -102,4 +106,124 @@ const jsonPoints = D.parseSoundingText(JSON.stringify({
 close(jsonPoints[0].p, 1000, 1e-10, "Pa-to-hPa conversion");
 close(jsonPoints[0].t, 20, 1e-10, "K-to-C conversion");
 
-console.log("All Skew-T physics and parser tests passed.");
+const appRoot = path.join(__dirname, "..");
+const indexSource = fs.readFileSync(path.join(appRoot, "index.html"), "utf8");
+const scriptSource = fs.readFileSync(path.join(appRoot, "script.js"), "utf8");
+
+function makeMockElement(id) {
+  const listeners = {};
+  return {
+    id,
+    disabled: false,
+    value: "",
+    files: null,
+    checked: true,
+    dataset: {},
+    textContent: "",
+    className: "",
+    width: 0,
+    height: 0,
+    attributes: {},
+    listeners,
+    classList: {
+      toggle() {},
+      add() {},
+      remove() {},
+    },
+    addEventListener(type, listener) {
+      (listeners[type] ||= []).push(listener);
+    },
+    setAttribute(name, value) {
+      this.attributes[name] = String(value);
+    },
+    getBoundingClientRect() {
+      return { width: 800, height: 600, left: 0, top: 0 };
+    },
+  };
+}
+
+const ids = [...indexSource.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
+const mockElements = Object.fromEntries(ids.map((id) => [id, makeMockElement(id)]));
+mockElements.presetSelect.value = "summer-unstable";
+mockElements.parcelPressureInput.value = "900";
+mockElements.parcelTempInput.value = "20";
+mockElements.parcelDewpointInput.value = "";
+
+const gridControlIds = {
+  isotherms: "isothermsToggle",
+  isobars: "isobarsToggle",
+  dryAdiabats: "dryAdiabatsToggle",
+  saturatedAdiabats: "saturatedAdiabatsToggle",
+  mixingRatio: "mixingRatioToggle",
+};
+const gridToggles = Object.entries(gridControlIds).map(([layer, id]) => {
+  assert.match(indexSource, new RegExp(`id="${id}"[^>]*data-grid-layer="${layer}"[^>]*checked`),
+    `${layer} control should exist and default to visible`);
+  const toggle = mockElements[id];
+  toggle.dataset.gridLayer = layer;
+  return toggle;
+});
+assert.match(indexSource, /id="fastForwardButton"[^>]*aria-pressed="false"/,
+  "fast-forward control should be an accessible toggle");
+
+const drawingContext = new Proxy({}, {
+  get(target, property) {
+    if (!(property in target)) target[property] = () => {};
+    return target[property];
+  },
+  set(target, property, value) {
+    target[property] = value;
+    return true;
+  },
+});
+mockElements.skewCanvas.getContext = () => drawingContext;
+
+const mockDocument = {
+  documentElement: {},
+  getElementById(id) {
+    return mockElements[id];
+  },
+  querySelectorAll(selector) {
+    return selector === "[data-grid-layer]" ? gridToggles : [];
+  },
+};
+const sandbox = {
+  window: {
+    SkewTPhysics: P,
+    SkewTData: D,
+    devicePixelRatio: 1,
+    addEventListener() {},
+  },
+  document: mockDocument,
+  performance,
+  requestAnimationFrame() {
+    return 1;
+  },
+  getComputedStyle() {
+    return { getPropertyValue: () => "" };
+  },
+  console,
+};
+vm.createContext(sandbox);
+vm.runInContext(scriptSource, sandbox, { filename: "script.js" });
+
+assert.equal(vm.runInContext("currentTimeScale()", sandbox), 50,
+  "normal animation should retain the existing time scale");
+mockElements.fastForwardButton.listeners.click[0]();
+assert.equal(vm.runInContext("currentTimeScale()", sandbox), 500,
+  "fast-forward should run the animation ten times faster");
+assert.equal(mockElements.fastForwardButton.attributes["aria-pressed"], "true",
+  "fast-forward should expose its active state");
+
+for (const toggle of gridToggles) {
+  toggle.checked = false;
+  toggle.listeners.change[0]();
+  assert.equal(vm.runInContext(`state.gridVisibility.${toggle.dataset.gridLayer}`, sandbox), false,
+    `${toggle.dataset.gridLayer} should hide when unchecked`);
+  toggle.checked = true;
+  toggle.listeners.change[0]();
+  assert.equal(vm.runInContext(`state.gridVisibility.${toggle.dataset.gridLayer}`, sandbox), true,
+    `${toggle.dataset.gridLayer} should show when checked`);
+}
+
+console.log("All Skew-T physics, parser, speed-control, and grid-control tests passed.");
